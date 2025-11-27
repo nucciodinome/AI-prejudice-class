@@ -60,7 +60,7 @@ if gender_col not in df.columns:
     # --------------------------------------------------
     # STOPWORDS
     # --------------------------------------------------
-    default_stop = {
+default_stop = {
         "a", "abbia", "abbiamo", "abbiano", "abbiate", "ad", "adesso", "affatto", "agl", "agli", "ai", "al", "alcuna", "alcune", "alcuni", 
         "alcuno", "all", "alla", "alle", "allo", "altri", "altrimenti", "altro", "altra", "altre", "anche", "ancora", "anzi", "assai", 
         "attualmente", "avendo", "avete", "aveva", "avevano", "avevo", "avrai", "avranno", "avrebbe", "avrebbero", "avrei", "avremo", 
@@ -90,376 +90,369 @@ if gender_col not in df.columns:
 
         # punctuation artifacts
         ".", ",", ";", "!", "?", "_", "(", ")", "[", "]", "{", "}", "'", "\""
-    }
+}
 
-    sociological_stop = {
+sociological_stop = {
         "people","think","say","study","student","analysis","text","use","like",
         "beijing","washington","dc","world","post","post-decarbonized","decarbonized","&"
-    }
+}
 
-    custom_stop = st.sidebar.text_area("Add custom stopwords (comma-separated)")
-    custom_stop = set(w.strip().lower() for w in custom_stop.split(",") if w.strip())
+custom_stop = st.sidebar.text_area("Add custom stopwords (comma-separated)")
+custom_stop = set(w.strip().lower() for w in custom_stop.split(",") if w.strip())
 
-    stopwords_final = sorted(default_stop.union(sociological_stop).union(custom_stop))
+stopwords_final = sorted(default_stop.union(sociological_stop).union(custom_stop))
 
-    # --------------------------------------------------
-    # Topic modeling sliders
-    # --------------------------------------------------
-    # ------------------------------------------------------
-    # Topic modeling sliders
-    # ------------------------------------------------------
-    n_topics = st.sidebar.slider("Number of topic clusters", 3, 20, 6)
-    min_df = st.sidebar.slider("Min document frequency", 1, 10, 2)
-    max_df = st.sidebar.slider("Max document frequency", 0.1, 1.0, 0.9)
-    top_n_words = st.sidebar.slider("Top terms per topic", 5, 30, 10)
-    
-    # ------------------------------------------------------
-    # CLEAN & TOKENIZE
-    # ------------------------------------------------------
-    def clean_tokenize(text):
-        text = text.lower()
-        text = re.sub(r"[^a-z0-9àèéìòù]+", " ", text)
-        tokens = text.split()
-        tokens = [t for t in tokens if len(t) > 2 and t not in stopwords_final]
-        return tokens
-    
-    df = df.dropna(subset=[text_col])
-    df["_clean_tokens"] = df[text_col].astype(str).apply(clean_tokenize)
-    docs = df["_clean_tokens"].apply(lambda tok: " ".join(tok)).tolist()
-    
-    # ------------------------------------------------------
-    # TF-IDF
-    # ------------------------------------------------------
-    tfidf = TfidfVectorizer(
-        stop_words=None,
-        max_features=6000,
-        min_df=min_df,
-        max_df=max_df,
-        ngram_range=(1,1)
+# ------------------------------------------------------
+# Topic modeling sliders
+# ------------------------------------------------------
+n_topics = st.sidebar.slider("Number of topic clusters", 3, 20, 6)
+min_df = st.sidebar.slider("Min document frequency", 1, 10, 2)
+max_df = st.sidebar.slider("Max document frequency", 0.1, 1.0, 0.9)
+top_n_words = st.sidebar.slider("Top terms per topic", 5, 30, 10)
+
+# ------------------------------------------------------
+# CLEAN & TOKENIZE
+# ------------------------------------------------------
+def clean_tokenize(text):
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9àèéìòù]+", " ", text)
+    tokens = text.split()
+    tokens = [t for t in tokens if len(t) > 2 and t not in stopwords_final]
+    return tokens
+
+df = df.dropna(subset=[text_col])
+df["_clean_tokens"] = df[text_col].astype(str).apply(clean_tokenize)
+docs = df["_clean_tokens"].apply(lambda tok: " ".join(tok)).tolist()
+
+# ------------------------------------------------------
+# TF-IDF
+# ------------------------------------------------------
+tfidf = TfidfVectorizer(
+    stop_words=None,
+    max_features=6000,
+    min_df=min_df,
+    max_df=max_df,
+    ngram_range=(1,1)
+)
+
+X = tfidf.fit_transform(docs)
+feature_names = np.array(tfidf.get_feature_names_out())
+
+# ------------------------------------------------------
+# NMF TOPIC MODEL
+# ------------------------------------------------------
+nmf = NMF(n_components=n_topics, random_state=42)
+W = nmf.fit_transform(X)
+H = nmf.components_
+df["topic"] = W.argmax(axis=1)
+
+# Helper
+def top_words(topic_idx, n=top_n_words):
+    idx = H[topic_idx].argsort()[-n:][::-1]
+    return feature_names[idx], H[topic_idx][idx]
+
+# ------------------------------------------------------
+# TABS
+# ------------------------------------------------------
+tabs = st.tabs([
+    "1️⃣ Topic Modeling",
+    "2️⃣ STM-style Word Differences + Dual Semantic Nets",
+    "3️⃣ Topic Distance Map",
+    "4️⃣ Semantic Network",
+    "5️⃣ Sentiment (Italiano)",
+    "6️⃣ Wordclouds (Gender × Model)"
+])
+
+# ======================================================
+# TAB 1 — TOPIC MODELING
+# ======================================================
+with tabs[0]:
+
+    st.subheader("📌 Extracted Topics")
+
+    topic_rows = []
+    for t in range(n_topics):
+        words, _ = top_words(t)
+        topic_rows.append({"Topic": t, "Top Terms": ", ".join(words)})
+
+    st.dataframe(pd.DataFrame(topic_rows), use_container_width=True)
+
+    # distribution by gender
+    st.subheader("Topic Distribution by Gender")
+    fig = px.histogram(
+        df, x="topic", color=gender_col, barmode="group",
+        color_discrete_sequence=px.colors.qualitative.Set2
     )
-    
-    X = tfidf.fit_transform(docs)
-    feature_names = np.array(tfidf.get_feature_names_out())
-    
-    # ------------------------------------------------------
-    # NMF TOPIC MODEL
-    # ------------------------------------------------------
-    nmf = NMF(n_components=n_topics, random_state=42)
-    W = nmf.fit_transform(X)
-    H = nmf.components_
-    df["topic"] = W.argmax(axis=1)
-    
-    # Helper
-    def top_words(topic_idx, n=top_n_words):
-        idx = H[topic_idx].argsort()[-n:][::-1]
-        return feature_names[idx], H[topic_idx][idx]
-    
-    # ------------------------------------------------------
-    # TABS
-    # ------------------------------------------------------
-    tabs = st.tabs([
-        "1️⃣ Topic Modeling",
-        "2️⃣ STM-style Word Differences + Dual Semantic Nets",
-        "3️⃣ Topic Distance Map",
-        "4️⃣ Semantic Network",
-        "5️⃣ Sentiment (Italiano)",
-        "6️⃣ Wordclouds (Gender × Model)"
-    ])
-    
-    # ======================================================
-    # TAB 1 — TOPIC MODELING
-    # ======================================================
-    with tabs[0]:
-    
-        st.subheader("📌 Extracted Topics")
-    
-        topic_rows = []
-        for t in range(n_topics):
-            words, _ = top_words(t)
-            topic_rows.append({"Topic": t, "Top Terms": ", ".join(words)})
-    
-        st.dataframe(pd.DataFrame(topic_rows), use_container_width=True)
-    
-        # distribution by gender
-        st.subheader("Topic Distribution by Gender")
-        fig = px.histogram(
-            df, x="topic", color=gender_col, barmode="group",
-            color_discrete_sequence=px.colors.qualitative.Set2
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("Topic–Term Heatmap")
+    heat = np.vstack([top_words(t, top_n_words)[1] for t in range(n_topics)])
+    fig_hm = go.Figure(
+        data=go.Heatmap(
+            z=heat,
+            x=[f"Term {i+1}" for i in range(top_n_words)],
+            y=[f"Topic {i}" for i in range(n_topics)],
+            colorscale="Viridis"
         )
-        st.plotly_chart(fig, use_container_width=True)
-    
-        st.subheader("Topic–Term Heatmap")
-        heat = np.vstack([top_words(t, top_n_words)[1] for t in range(n_topics)])
-        fig_hm = go.Figure(
-            data=go.Heatmap(
-                z=heat,
-                x=[f"Term {i+1}" for i in range(top_n_words)],
-                y=[f"Topic {i}" for i in range(n_topics)],
-                colorscale="Viridis"
-            )
-        )
-        st.plotly_chart(fig_hm, use_container_width=True)
-    
-    # ======================================================
-    # TAB 2 — STM-style + DUAL SEMANTIC NETWORKS
-    # ======================================================
-    with tabs[1]:
-    
-        st.header("STM-Style Difference-in-Word-Use Analysis (Gender Only)")
-    
-        genders = df[gender_col].unique()
-        if len(genders) != 2:
-            st.warning("Il dataset deve contenere ESATTAMENTE due categorie gender.")
-        else:
-            g1, g2 = genders
-    
-            tok1 = df[df[gender_col] == g1]["_clean_tokens"].sum()
-            tok2 = df[df[gender_col] == g2]["_clean_tokens"].sum()
-    
-            w1 = Counter(tok1)
-            w2 = Counter(tok2)
-            vocab = list(set(w1.keys()).union(set(w2.keys())))
-    
-            diff = [{"word": w, "diff": w1[w] - w2[w]} for w in vocab]
-            diff_df = pd.DataFrame(diff)
-            diff_df["abs"] = diff_df["diff"].abs()
-            diff_df = diff_df.sort_values("abs", ascending=False).head(40)
-    
-            # Red (negative) → Blue (positive)
-            fig = px.bar(
-                diff_df,
-                x="word",
-                y="diff",
-                color="diff",
-                color_continuous_scale=["red", "white", "blue"],
-                title=f"{g1} vs {g2}: Word Usage Differences"
-            )
-            fig.update_layout(xaxis={'categoryorder': 'total descending'})
-            st.plotly_chart(fig, use_container_width=True)
-    
-        # ------------------------
-        # DUAL SEMANTIC NETWORKS (NEW)
-        # ------------------------
-        st.subheader("🔵🔴 Dual Semantic Networks by Gender")
-    
-        def build_semantic_network(tokens, min_w=1):
-            G = nx.Graph()
-            top_terms = Counter(tokens).most_common(30)
-            words = [w for w,_ in top_terms]
-    
-            for w1, w2 in combinations(words, 2):
-                if G.has_edge(w1, w2):
-                    G[w1][w2]["weight"] += 1
-                else:
-                    G.add_edge(w1, w2, weight=1)
-    
-            # Remove weak edges
-            rem = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
-            G.remove_edges_from(rem)
-            G.remove_nodes_from(list(nx.isolates(G)))
-    
-            return G
-    
-        col1, col2 = st.columns(2)
-    
-        with col1:
-            st.markdown(f"### 🔴 Semantic Network – {g1}")
-            G1 = build_semantic_network(tok1)
-            pos = nx.spring_layout(G1, seed=1)
-            fig = go.Figure()
-            for u,v in G1.edges():
-                x0,y0 = pos[u]; x1,y1 = pos[v]
-                fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
-            fig.add_trace(go.Scatter(
-                x=[pos[n][0] for n in G1.nodes()],
-                y=[pos[n][1] for n in G1.nodes()],
-                mode="markers+text",
-                text=list(G1.nodes()),
-                textposition="top center",
-                marker=dict(size=10, color="red")
-            ))
-            fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
-            st.plotly_chart(fig, use_container_width=True)
-    
-        with col2:
-            st.markdown(f"### 🔵 Semantic Network – {g2}")
-            G2 = build_semantic_network(tok2)
-            pos = nx.spring_layout(G2, seed=1)
-            fig = go.Figure()
-            for u,v in G2.edges():
-                x0,y0 = pos[u]; x1,y1 = pos[v]
-                fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
-            fig.add_trace(go.Scatter(
-                x=[pos[n][0] for n in G2.nodes()],
-                y=[pos[n][1] for n in G2.nodes()],
-                mode="markers+text",
-                text=list(G2.nodes()),
-                textposition="top center",
-                marker=dict(size=10, color="blue")
-            ))
-            fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
-            st.plotly_chart(fig, use_container_width=True)
-    
-    # ======================================================
-    # TAB 3 — TOPIC DISTANCE MAP
-    # ======================================================
-    with tabs[2]:
-        st.header("Topic Distance Map (MDS)")
-        dist = pairwise_distances(H)
-        coords = MDS(n_components=2, random_state=42, dissimilarity="precomputed").fit_transform(dist)
-    
-        fig = px.scatter(
-            x=coords[:,0], y=coords[:,1],
-            text=[f"T{i}" for i in range(n_topics)],
-            color=list(range(n_topics)),
-            color_continuous_scale="Viridis"
-        )
-        fig.update_traces(textposition="top center")
-        st.plotly_chart(fig, use_container_width=True)
-    
-    # ======================================================
-    # TAB 4 — SEMANTIC NETWORK (ORIGINAL)
-    # ======================================================
-    with tabs[3]:
-        st.header("Semantic Network (Weighted Strength Centrality + Interactive)")
-    
-        min_w = st.slider("Minimum co-occurrence weight", 1, 6, 1)
-        min_cent = st.slider("Minimum node strength (centrality filter)", 0.0, 1.0, 0.0, 0.01)
-    
-        G = nx.Graph()
-    
-        for t in range(n_topics):
-            words, _ = top_words(t, 12)
-            for w1, w2 in combinations(words, 2):
-                if G.has_edge(w1, w2):
-                    G[w1][w2]["weight"] += 1
-                else:
-                    G.add_edge(w1, w2, weight=1)
-    
-        edges_to_remove = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
-        G.remove_edges_from(edges_to_remove)
-        G.remove_nodes_from(list(nx.isolates(G)))
-    
-        if len(G.nodes()) == 0:
-            st.warning("Nothing remains. Lower thresholds.")
-            st.stop()
-    
-        strength = {n: sum(d["weight"] for _,_,d in G.edges(n, data=True)) for n in G.nodes()}
-        cent_vals = np.array(list(strength.values()), dtype=float)
-        min_v, max_v = np.min(cent_vals), np.max(cent_vals)
-        ptp = max_v - min_v
-        cent_norm = np.ones_like(cent_vals)*0.5 if ptp<1e-12 else (cent_vals-min_v)/ptp
-    
-        keep_nodes = [node for node,c in zip(G.nodes(), cent_norm) if c>=min_cent]
-        G = G.subgraph(keep_nodes).copy()
-    
-        strength = {n: sum(d["weight"] for _,_,d in G.edges(n, data=True)) for n in G.nodes()}
-        cent_vals = np.array(list(strength.values()), dtype=float)
-        min_v, max_v = np.min(cent_vals), np.max(cent_vals)
-        ptp = max_v - min_v
-        cent_norm = np.ones_like(cent_vals)*0.5 if ptp<1e-12 else (cent_vals-min_v)/ptp
-    
-        colors = ["rgb(54,14,36)", "rgb(80,20,66)", "rgb(100,31,104)", "rgb(113,50,141)",
-                  "rgb(119,74,175)", "rgb(120,100,202)", "rgb(117,127,221)", "rgb(115,154,228)",
-                  "rgb(129,180,227)", "rgb(156,201,226)", "rgb(191,221,229)"]
-        palette = list(reversed(colors[2:]))
-        idx = (cent_norm*(len(palette)-1)).astype(int)
-        node_colors = [palette[i] for i in idx]
-        node_sizes = [8+80*c for c in cent_norm]
-    
-        pos = nx.spring_layout(G, k=0.9, iterations=100, seed=42, weight="weight")
-    
-        edge_x, edge_y = [], []
-        for u,v,_ in G.edges(data=True):
-            x0,y0 = pos[u]
-            x1,y1 = pos[v]
-            edge_x += [x0,x1,None]
-            edge_y += [y0,y1,None]
-    
-        node_x = [pos[n][0] for n in G.nodes()]
-        node_y = [pos[n][1] for n in G.nodes()]
-        node_text = [f"{n}<br>Strength={strength[n]:.2f}" for n in G.nodes()]
-    
-        fig_net = go.Figure()
-    
-        fig_net.add_trace(go.Scatter(
-            x=edge_x, y=edge_y, mode="lines",
-            line=dict(width=1.3, color="dimgray"), opacity=0.55
-        ))
-    
-        fig_net.add_trace(go.Scatter(
-            x=node_x, y=node_y, mode="markers+text",
-            text=list(G.nodes()), textposition="top center",
-            hovertext=node_text,
-            hoverinfo="text",
-            marker=dict(size=node_sizes, color=node_colors, opacity=0.97)
-        ))
-    
-        fig_net.update_layout(
-            dragmode="pan",
-            height=830,
-            margin=dict(l=10,r=10,b=10,t=10),
-            hovermode="closest"
-        )
-    
-        st.plotly_chart(fig_net, use_container_width=True)
-    
-    # ======================================================
-    # TAB 5 — SENTIMENT (ITALIANO)
-    # ======================================================
-    with tabs[4]:
-    
-        st.header("Sentiment Analysis (Italiano)")
-    
-        sia = SentimentIntensityAnalyzer()
-    
-        # dizionario sentiment italiano additivo
-        italian_boost = {
-            "buono": 2.0, "positivo": 2.2, "favorevole": 1.8,
-            "cattivo": -2.0, "negativo": -2.2, "sfavorevole": -1.8,
-            "terribile": -3.0, "eccellente": 3.0
-        }
-        sia.lexicon.update(italian_boost)
-    
-        df["sentiment_score"] = df[text_col].astype(str).apply(lambda x: sia.polarity_scores(x)["compound"])
-    
-        df["sentiment_label"] = df["sentiment_score"].apply(
-            lambda s: "Positivo" if s>0.05 else ("Negativo" if s<-0.05 else "Neutro")
-        )
-    
-        color_map = {"Positivo": "#4DA6FF","Negativo": "#FF6666","Neutro":"#BFBFBF"}
-    
-        st.subheader("Distribuzione generale")
-        sent_counts = df["sentiment_label"].value_counts(normalize=True).reset_index()
-        sent_counts.columns = ["sentiment_label","percent"]
-        sent_counts["percent_display"] = (sent_counts["percent"]*100).round(1)
-    
+    )
+    st.plotly_chart(fig_hm, use_container_width=True)
+
+# ======================================================
+# TAB 2 — STM-style + DUAL SEMANTIC NETWORKS
+# ======================================================
+with tabs[1]:
+
+    st.header("STM-Style Difference-in-Word-Use Analysis (Gender Only)")
+
+    genders = df[gender_col].unique()
+    if len(genders) != 2:
+        st.warning("Il dataset deve contenere ESATTAMENTE due categorie gender.")
+    else:
+        g1, g2 = genders
+
+        tok1 = df[df[gender_col] == g1]["_clean_tokens"].sum()
+        tok2 = df[df[gender_col] == g2]["_clean_tokens"].sum()
+
+        w1 = Counter(tok1)
+        w2 = Counter(tok2)
+        vocab = list(set(w1.keys()).union(set(w2.keys())))
+
+        diff = [{"word": w, "diff": w1[w] - w2[w]} for w in vocab]
+        diff_df = pd.DataFrame(diff)
+        diff_df["abs"] = diff_df["diff"].abs()
+        diff_df = diff_df.sort_values("abs", ascending=False).head(40)
+
+        # Red (negative) → Blue (positive)
         fig = px.bar(
-            sent_counts, x="sentiment_label", y="percent",
-            color="sentiment_label", color_discrete_map=color_map,
-            text="percent_display"
+            diff_df,
+            x="word",
+            y="diff",
+            color="diff",
+            color_continuous_scale=["red", "white", "blue"],
+            title=f"{g1} vs {g2}: Word Usage Differences"
         )
-        fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        fig.update_layout(yaxis=dict(ticksuffix="%"))
+        fig.update_layout(xaxis={'categoryorder': 'total descending'})
         st.plotly_chart(fig, use_container_width=True)
-    
-    # ======================================================
-    # TAB 6 — WORDCLOUDS
-    # ======================================================
-    with tabs[5]:
-    
-        st.header("Wordclouds (Gender × Model)")
-    
-        groups = df.groupby([gender_col, model_col])
-        for (gen, mod), subset in groups:
-            st.subheader(f"{gen} – {mod}")
-            text = " ".join(subset[text_col].astype(str))
-            if len(text) < 20:
-                st.write("Not enough text.")
-                continue
-            wc = WordCloud(width=1000, height=500, background_color="white").generate(text)
-            st.image(wc.to_array(), use_container_width=True)
 
+    # ------------------------
+    # DUAL SEMANTIC NETWORKS (NEW)
+    # ------------------------
+    st.subheader("🔵🔴 Dual Semantic Networks by Gender")
 
+    def build_semantic_network(tokens, min_w=1):
+        G = nx.Graph()
+        top_terms = Counter(tokens).most_common(30)
+        words = [w for w,_ in top_terms]
 
+        for w1, w2 in combinations(words, 2):
+            if G.has_edge(w1, w2):
+                G[w1][w2]["weight"] += 1
+            else:
+                G.add_edge(w1, w2, weight=1)
 
+        # Remove weak edges
+        rem = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
+        G.remove_edges_from(rem)
+        G.remove_nodes_from(list(nx.isolates(G)))
+
+        return G
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"### 🔴 Semantic Network – {g1}")
+        G1 = build_semantic_network(tok1)
+        pos = nx.spring_layout(G1, seed=1)
+        fig = go.Figure()
+        for u,v in G1.edges():
+            x0,y0 = pos[u]; x1,y1 = pos[v]
+            fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
+        fig.add_trace(go.Scatter(
+            x=[pos[n][0] for n in G1.nodes()],
+            y=[pos[n][1] for n in G1.nodes()],
+            mode="markers+text",
+            text=list(G1.nodes()),
+            textposition="top center",
+            marker=dict(size=10, color="red")
+        ))
+        fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.markdown(f"### 🔵 Semantic Network – {g2}")
+        G2 = build_semantic_network(tok2)
+        pos = nx.spring_layout(G2, seed=1)
+        fig = go.Figure()
+        for u,v in G2.edges():
+            x0,y0 = pos[u]; x1,y1 = pos[v]
+            fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
+        fig.add_trace(go.Scatter(
+            x=[pos[n][0] for n in G2.nodes()],
+            y=[pos[n][1] for n in G2.nodes()],
+            mode="markers+text",
+            text=list(G2.nodes()),
+            textposition="top center",
+            marker=dict(size=10, color="blue")
+        ))
+        fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
+        st.plotly_chart(fig, use_container_width=True)
+
+# ======================================================
+# TAB 3 — TOPIC DISTANCE MAP
+# ======================================================
+with tabs[2]:
+    st.header("Topic Distance Map (MDS)")
+    dist = pairwise_distances(H)
+    coords = MDS(n_components=2, random_state=42, dissimilarity="precomputed").fit_transform(dist)
+
+    fig = px.scatter(
+        x=coords[:,0], y=coords[:,1],
+        text=[f"T{i}" for i in range(n_topics)],
+        color=list(range(n_topics)),
+        color_continuous_scale="Viridis"
+    )
+    fig.update_traces(textposition="top center")
+    st.plotly_chart(fig, use_container_width=True)
+
+# ======================================================
+# TAB 4 — SEMANTIC NETWORK (ORIGINAL)
+# ======================================================
+with tabs[3]:
+    st.header("Semantic Network (Weighted Strength Centrality + Interactive)")
+
+    min_w = st.slider("Minimum co-occurrence weight", 1, 6, 1)
+    min_cent = st.slider("Minimum node strength (centrality filter)", 0.0, 1.0, 0.0, 0.01)
+
+    G = nx.Graph()
+
+    for t in range(n_topics):
+        words, _ = top_words(t, 12)
+        for w1, w2 in combinations(words, 2):
+            if G.has_edge(w1, w2):
+                G[w1][w2]["weight"] += 1
+            else:
+                G.add_edge(w1, w2, weight=1)
+
+    edges_to_remove = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
+    G.remove_edges_from(edges_to_remove)
+    G.remove_nodes_from(list(nx.isolates(G)))
+
+    if len(G.nodes()) == 0:
+        st.warning("Nothing remains. Lower thresholds.")
+        st.stop()
+
+    strength = {n: sum(d["weight"] for _,_,d in G.edges(n, data=True)) for n in G.nodes()}
+    cent_vals = np.array(list(strength.values()), dtype=float)
+    min_v, max_v = np.min(cent_vals), np.max(cent_vals)
+    ptp = max_v - min_v
+    cent_norm = np.ones_like(cent_vals)*0.5 if ptp<1e-12 else (cent_vals-min_v)/ptp
+
+    keep_nodes = [node for node,c in zip(G.nodes(), cent_norm) if c>=min_cent]
+    G = G.subgraph(keep_nodes).copy()
+
+    strength = {n: sum(d["weight"] for _,_,d in G.edges(n, data=True)) for n in G.nodes()}
+    cent_vals = np.array(list(strength.values()), dtype=float)
+    min_v, max_v = np.min(cent_vals), np.max(cent_vals)
+    ptp = max_v - min_v
+    cent_norm = np.ones_like(cent_vals)*0.5 if ptp<1e-12 else (cent_vals-min_v)/ptp
+
+    colors = ["rgb(54,14,36)", "rgb(80,20,66)", "rgb(100,31,104)", "rgb(113,50,141)",
+              "rgb(119,74,175)", "rgb(120,100,202)", "rgb(117,127,221)", "rgb(115,154,228)",
+              "rgb(129,180,227)", "rgb(156,201,226)", "rgb(191,221,229)"]
+    palette = list(reversed(colors[2:]))
+    idx = (cent_norm*(len(palette)-1)).astype(int)
+    node_colors = [palette[i] for i in idx]
+    node_sizes = [8+80*c for c in cent_norm]
+
+    pos = nx.spring_layout(G, k=0.9, iterations=100, seed=42, weight="weight")
+
+    edge_x, edge_y = [], []
+    for u,v,_ in G.edges(data=True):
+        x0,y0 = pos[u]
+        x1,y1 = pos[v]
+        edge_x += [x0,x1,None]
+        edge_y += [y0,y1,None]
+
+    node_x = [pos[n][0] for n in G.nodes()]
+    node_y = [pos[n][1] for n in G.nodes()]
+    node_text = [f"{n}<br>Strength={strength[n]:.2f}" for n in G.nodes()]
+
+    fig_net = go.Figure()
+
+    fig_net.add_trace(go.Scatter(
+        x=edge_x, y=edge_y, mode="lines",
+        line=dict(width=1.3, color="dimgray"), opacity=0.55
+    ))
+
+    fig_net.add_trace(go.Scatter(
+        x=node_x, y=node_y, mode="markers+text",
+        text=list(G.nodes()), textposition="top center",
+        hovertext=node_text,
+        hoverinfo="text",
+        marker=dict(size=node_sizes, color=node_colors, opacity=0.97)
+    ))
+
+    fig_net.update_layout(
+        dragmode="pan",
+        height=830,
+        margin=dict(l=10,r=10,b=10,t=10),
+        hovermode="closest"
+    )
+
+    st.plotly_chart(fig_net, use_container_width=True)
+
+# ======================================================
+# TAB 5 — SENTIMENT (ITALIANO)
+# ======================================================
+with tabs[4]:
+
+    st.header("Sentiment Analysis (Italiano)")
+
+    sia = SentimentIntensityAnalyzer()
+
+    # dizionario sentiment italiano additivo
+    italian_boost = {
+        "buono": 2.0, "positivo": 2.2, "favorevole": 1.8,
+        "cattivo": -2.0, "negativo": -2.2, "sfavorevole": -1.8,
+        "terribile": -3.0, "eccellente": 3.0
+    }
+    sia.lexicon.update(italian_boost)
+
+    df["sentiment_score"] = df[text_col].astype(str).apply(lambda x: sia.polarity_scores(x)["compound"])
+
+    df["sentiment_label"] = df["sentiment_score"].apply(
+        lambda s: "Positivo" if s>0.05 else ("Negativo" if s<-0.05 else "Neutro")
+    )
+
+    color_map = {"Positivo": "#4DA6FF","Negativo": "#FF6666","Neutro":"#BFBFBF"}
+
+    st.subheader("Distribuzione generale")
+    sent_counts = df["sentiment_label"].value_counts(normalize=True).reset_index()
+    sent_counts.columns = ["sentiment_label","percent"]
+    sent_counts["percent_display"] = (sent_counts["percent"]*100).round(1)
+
+    fig = px.bar(
+        sent_counts, x="sentiment_label", y="percent",
+        color="sentiment_label", color_discrete_map=color_map,
+        text="percent_display"
+    )
+    fig.update_traces(texttemplate="%{text}%", textposition="outside")
+    fig.update_layout(yaxis=dict(ticksuffix="%"))
+    st.plotly_chart(fig, use_container_width=True)
+
+# ======================================================
+# TAB 6 — WORDCLOUDS
+# ======================================================
+with tabs[5]:
+
+    st.header("Wordclouds (Gender × Model)")
+
+    groups = df.groupby([gender_col, model_col])
+    for (gen, mod), subset in groups:
+        st.subheader(f"{gen} – {mod}")
+        text = " ".join(subset[text_col].astype(str))
+        if len(text) < 20:
+            st.write("Not enough text.")
+            continue
+        wc = WordCloud(width=1000, height=500, background_color="white").generate(text)
+        st.image(wc.to_array(), use_container_width=True)
