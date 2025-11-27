@@ -10,4 +10,3 @@ openpyxl
 networkx
 spacy
 it_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/it_core_news_sm-3.7.0/it_core_news_sm-3.7.0-py3-none-any.whl
-it_core_news_sm
