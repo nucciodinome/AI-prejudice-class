@@ -14,27 +14,27 @@ import networkx as nx
 from wordcloud import WordCloud
 from itertools import combinations
 from collections import Counter
+import spacy
 import os
 
+# ------------------------------------------------------
+# LOAD ITALIAN SPACY MODEL
+# ------------------------------------------------------
+nlp = spacy.load("it_core_news_sm")
 
 # ------------------------------------------------------
-# SAFE NLTK DOWNLOAD
-# ------------------------------------------------------
-nltk.download("vader_lexicon", quiet=True)
-
-# ------------------------------------------------------
-# CONFIG
+# STREAMLIT CONFIG
 # ------------------------------------------------------
 st.set_page_config(page_title="Ultra-Advanced Text Analysis Suite", layout="wide")
-st.title("📊 Advanced Text Analysis Suite – Gender Version")
+st.title("📊 Advanced Text Analysis Suite – Gender-Focused Version")
 
 # ------------------------------------------------------
-# AUTOLOAD EXCEL FROM GITHUB FOLDER
+# AUTOLOAD EXCEL
 # ------------------------------------------------------
 DATA_FILE = "llm_perception_study.xlsx"
 
 if not os.path.exists(DATA_FILE):
-    st.error(f"❌ Il file '{DATA_FILE}' non è presente nella cartella della app.")
+    st.error(f"❌ Il file '{DATA_FILE}' non è presente.")
     st.stop()
 
 df = pd.read_excel(DATA_FILE)
@@ -44,17 +44,18 @@ df = pd.read_excel(DATA_FILE)
 # ------------------------------------------------------
 st.sidebar.header("Settings")
 
-# Auto-detect text column
-possible_text = [c for c in df.columns if c.lower() in ["text","document","content"]]
-text_col = st.sidebar.selectbox("Select text column", df.columns, index=df.columns.get_loc(possible_text[0]) if possible_text else 0)
+# Auto-select text column
+if "document" in df.columns:
+    default_index = df.columns.get_loc("document")
+else:
+    default_index = 0
 
-# model column
+text_col = st.sidebar.selectbox("Select text column", df.columns, index=default_index)
 model_col = st.sidebar.selectbox("Select model column", df.columns)
 
-# Gender column (formerly region)
 gender_col = "type"
 if gender_col not in df.columns:
-    st.error("La colonna 'type' (gender) non esiste nel dataset.")
+    st.error("La colonna 'type' (gender) non esiste.")
     st.stop()
 
     # --------------------------------------------------
@@ -103,7 +104,7 @@ custom_stop = set(w.strip().lower() for w in custom_stop.split(",") if w.strip()
 stopwords_final = sorted(default_stop.union(sociological_stop).union(custom_stop))
 
 # ------------------------------------------------------
-# Topic modeling sliders
+# TOPIC MODELING CONTROLS
 # ------------------------------------------------------
 n_topics = st.sidebar.slider("Number of topic clusters", 3, 20, 6)
 min_df = st.sidebar.slider("Min document frequency", 1, 10, 2)
@@ -117,7 +118,7 @@ def clean_tokenize(text):
     text = text.lower()
     text = re.sub(r"[^a-z0-9àèéìòù]+", " ", text)
     tokens = text.split()
-    tokens = [t for t in tokens if len(t) > 2 and t not in stopwords_final]
+    tokens = [t for t in tokens if len(t)>2 and t not in stopwords_final]
     return tokens
 
 df = df.dropna(subset=[text_col])
@@ -139,14 +140,13 @@ X = tfidf.fit_transform(docs)
 feature_names = np.array(tfidf.get_feature_names_out())
 
 # ------------------------------------------------------
-# NMF TOPIC MODEL
+# NMF
 # ------------------------------------------------------
 nmf = NMF(n_components=n_topics, random_state=42)
 W = nmf.fit_transform(X)
 H = nmf.components_
 df["topic"] = W.argmax(axis=1)
 
-# Helper
 def top_words(topic_idx, n=top_n_words):
     idx = H[topic_idx].argsort()[-n:][::-1]
     return feature_names[idx], H[topic_idx][idx]
@@ -164,7 +164,7 @@ tabs = st.tabs([
 ])
 
 # ======================================================
-# TAB 1 — TOPIC MODELING
+# TAB 1
 # ======================================================
 with tabs[0]:
 
@@ -177,7 +177,6 @@ with tabs[0]:
 
     st.dataframe(pd.DataFrame(topic_rows), use_container_width=True)
 
-    # distribution by gender
     st.subheader("Topic Distribution by Gender")
     fig = px.histogram(
         df, x="topic", color=gender_col, barmode="group",
@@ -198,60 +197,65 @@ with tabs[0]:
     st.plotly_chart(fig_hm, use_container_width=True)
 
 # ======================================================
-# TAB 2 — STM-style + DUAL SEMANTIC NETWORKS
+# TAB 2 — WORD DIFFERENCE + DUAL SEMANTIC NETS
 # ======================================================
 with tabs[1]:
 
-    st.header("STM-Style Difference-in-Word-Use Analysis (Gender Only)")
+    st.header("STM-Style Difference-in-Word-Use Analysis")
 
     genders = df[gender_col].unique()
     if len(genders) != 2:
-        st.warning("Il dataset deve contenere ESATTAMENTE due categorie gender.")
-    else:
-        g1, g2 = genders
+        st.warning("Il dataset deve avere 2 categorie gender.")
+        st.stop()
 
-        tok1 = df[df[gender_col] == g1]["_clean_tokens"].sum()
-        tok2 = df[df[gender_col] == g2]["_clean_tokens"].sum()
+    g1, g2 = genders
 
-        w1 = Counter(tok1)
-        w2 = Counter(tok2)
-        vocab = list(set(w1.keys()).union(set(w2.keys())))
+    tok1 = df[df[gender_col] == g1]["_clean_tokens"].sum()
+    tok2 = df[df[gender_col] == g2]["_clean_tokens"].sum()
 
-        diff = [{"word": w, "diff": w1[w] - w2[w]} for w in vocab]
-        diff_df = pd.DataFrame(diff)
-        diff_df["abs"] = diff_df["diff"].abs()
-        diff_df = diff_df.sort_values("abs", ascending=False).head(40)
+    w1 = Counter(tok1)
+    w2 = Counter(tok2)
+    vocab = list(set(w1.keys()).union(w2.keys()))
 
-        # Red (negative) → Blue (positive)
-        fig = px.bar(
-            diff_df,
-            x="word",
-            y="diff",
-            color="diff",
-            color_continuous_scale=px.colors.diverging.RdBu[::-1],
-            title=f"{g1} vs {g2}: Word Usage Differences"
-        )
-        fig.update_layout(xaxis={'categoryorder': 'total descending'})
-        st.plotly_chart(fig, use_container_width=True)
+    diff = [{"word": w, "diff": w1[w] - w2[w]} for w in vocab]
+    diff_df = pd.DataFrame(diff)
+    diff_df["abs"] = diff_df["diff"].abs()
+    diff_df = diff_df.sort_values("abs", ascending=False).head(40)
 
-    # ------------------------
-    # DUAL SEMANTIC NETWORKS (NEW)
-    # ------------------------
+    fig = px.bar(
+        diff_df,
+        x="word",
+        y="diff",
+        color="diff",
+        color_continuous_scale=px.colors.diverging.RdBu[::-1],
+        title=f"{g1} vs {g2}: Word Usage Differences"
+    )
+    fig.update_layout(xaxis={'categoryorder': 'total descending'})
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ------------------------------------------------------
+    # DUAL SEMANTIC NETWORK (with percentile filtering)
+    # ------------------------------------------------------
     st.subheader("🔵🔴 Dual Semantic Networks by Gender")
 
-    def build_semantic_network(tokens, min_w=1):
-        G = nx.Graph()
-        top_terms = Counter(tokens).most_common(30)
+    def build_semantic_network(tokens, max_terms=30):
+        # top words
+        top_terms = Counter(tokens).most_common(max_terms)
         words = [w for w,_ in top_terms]
 
+        # co-occurrence
+        G = nx.Graph()
         for w1, w2 in combinations(words, 2):
-            if G.has_edge(w1, w2):
-                G[w1][w2]["weight"] += 1
-            else:
-                G.add_edge(w1, w2, weight=1)
+            G.add_edge(w1, w2, weight=1)
 
-        # Remove weak edges
-        rem = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
+        # edge weights vector
+        weights = [d["weight"] for _,_,d in G.edges(data=True)]
+        if len(weights) == 0:
+            return G
+
+        # percentile threshold
+        thresh = np.percentile(weights, 75)  # keep top 25%
+        rem = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < thresh]
         G.remove_edges_from(rem)
         G.remove_nodes_from(list(nx.isolates(G)))
 
@@ -259,40 +263,70 @@ with tabs[1]:
 
     col1, col2 = st.columns(2)
 
+    # ---- NETWORK 1 ----
     with col1:
         st.markdown(f"### 🔴 Semantic Network – {g1}")
         G1 = build_semantic_network(tok1)
-        pos = nx.spring_layout(G1, seed=1)
+        pos = nx.spring_layout(G1, seed=1, k=0.7)
+
         fig = go.Figure()
-        for u,v in G1.edges():
+
+        # edges
+        for u,v,d in G1.edges(data=True):
             x0,y0 = pos[u]; x1,y1 = pos[v]
-            fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
+            fig.add_trace(go.Scatter(
+                x=[x0,x1], y=[y0,y1],
+                mode="lines",
+                line=dict(color="rgba(80,80,80,0.55)", width=1.4),
+                hoverinfo="none"
+            ))
+
+        # nodes
         fig.add_trace(go.Scatter(
             x=[pos[n][0] for n in G1.nodes()],
             y=[pos[n][1] for n in G1.nodes()],
             mode="markers+text",
             text=list(G1.nodes()),
             textposition="top center",
-            marker=dict(size=10, color="red")
+            marker=dict(
+                size=12,
+                color="rgba(255,60,60,0.75)",
+                line=dict(color="rgba(0,0,0,0.25)", width=1)
+            )
         ))
         fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
         st.plotly_chart(fig, use_container_width=True)
 
+    # ---- NETWORK 2 ----
     with col2:
         st.markdown(f"### 🔵 Semantic Network – {g2}")
         G2 = build_semantic_network(tok2)
-        pos = nx.spring_layout(G2, seed=1)
+        pos = nx.spring_layout(G2, seed=1, k=0.7)
+
         fig = go.Figure()
-        for u,v in G2.edges():
+
+        # edges
+        for u,v,d in G2.edges(data=True):
             x0,y0 = pos[u]; x1,y1 = pos[v]
-            fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
+            fig.add_trace(go.Scatter(
+                x=[x0,x1], y=[y0,y1],
+                mode="lines",
+                line=dict(color="rgba(70,70,70,0.55)", width=1.4),
+                hoverinfo="none"
+            ))
+
+        # nodes
         fig.add_trace(go.Scatter(
             x=[pos[n][0] for n in G2.nodes()],
             y=[pos[n][1] for n in G2.nodes()],
             mode="markers+text",
             text=list(G2.nodes()),
             textposition="top center",
-            marker=dict(size=10, color="blue")
+            marker=dict(
+                size=12,
+                color="rgba(60,100,255,0.75)",
+                line=dict(color="rgba(0,0,0,0.25)", width=1)
+            )
         ))
         fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
         st.plotly_chart(fig, use_container_width=True)
@@ -301,6 +335,7 @@ with tabs[1]:
 # TAB 3 — TOPIC DISTANCE MAP
 # ======================================================
 with tabs[2]:
+
     st.header("Topic Distance Map (MDS)")
     dist = pairwise_distances(H)
     coords = MDS(n_components=2, random_state=42, dissimilarity="precomputed").fit_transform(dist)
@@ -315,116 +350,106 @@ with tabs[2]:
     st.plotly_chart(fig, use_container_width=True)
 
 # ======================================================
-# TAB 4 — SEMANTIC NETWORK (ORIGINAL)
+# TAB 4 — ORIGINAL SEMANTIC NETWORK
 # ======================================================
 with tabs[3]:
-    st.header("Semantic Network (Weighted Strength Centrality + Interactive)")
+    st.header("Semantic Network (Weighted Strength Centrality)")
 
     min_w = st.slider("Minimum co-occurrence weight", 1, 6, 1)
     min_cent = st.slider("Minimum node strength (centrality filter)", 0.0, 1.0, 0.0, 0.01)
 
     G = nx.Graph()
-
     for t in range(n_topics):
-        words, _ = top_words(t, 12)
-        for w1, w2 in combinations(words, 2):
-            if G.has_edge(w1, w2):
+        words,_ = top_words(t, 12)
+        for w1,w2 in combinations(words, 2):
+            if G.has_edge(w1,w2):
                 G[w1][w2]["weight"] += 1
             else:
-                G.add_edge(w1, w2, weight=1)
+                G.add_edge(w1,w2, weight=1)
 
-    edges_to_remove = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
-    G.remove_edges_from(edges_to_remove)
+    rem = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
+    G.remove_edges_from(rem)
     G.remove_nodes_from(list(nx.isolates(G)))
 
     if len(G.nodes()) == 0:
-        st.warning("Nothing remains. Lower thresholds.")
+        st.warning("No nodes remain.")
         st.stop()
 
     strength = {n: sum(d["weight"] for _,_,d in G.edges(n, data=True)) for n in G.nodes()}
-    cent_vals = np.array(list(strength.values()), dtype=float)
-    min_v, max_v = np.min(cent_vals), np.max(cent_vals)
-    ptp = max_v - min_v
-    cent_norm = np.ones_like(cent_vals)*0.5 if ptp<1e-12 else (cent_vals-min_v)/ptp
+    cent_vals = np.array(list(strength.values()))
+    min_v, max_v = cent_vals.min(), cent_vals.max()
+    cent_norm = (cent_vals - min_v) / (max_v - min_v + 1e-12)
 
-    keep_nodes = [node for node,c in zip(G.nodes(), cent_norm) if c>=min_cent]
+    keep_nodes = [node for node,c in zip(G.nodes(),cent_norm) if c>=min_cent]
     G = G.subgraph(keep_nodes).copy()
 
     strength = {n: sum(d["weight"] for _,_,d in G.edges(n, data=True)) for n in G.nodes()}
-    cent_vals = np.array(list(strength.values()), dtype=float)
-    min_v, max_v = np.min(cent_vals), np.max(cent_vals)
-    ptp = max_v - min_v
-    cent_norm = np.ones_like(cent_vals)*0.5 if ptp<1e-12 else (cent_vals-min_v)/ptp
+    cent_vals = np.array(list(strength.values()))
+    min_v, max_v = cent_vals.min(), cent_vals.max()
+    cent_norm = (cent_vals - min_v) / (max_v - min_v + 1e-12)
 
-    colors = ["rgb(54,14,36)", "rgb(80,20,66)", "rgb(100,31,104)", "rgb(113,50,141)",
-              "rgb(119,74,175)", "rgb(120,100,202)", "rgb(117,127,221)", "rgb(115,154,228)",
-              "rgb(129,180,227)", "rgb(156,201,226)", "rgb(191,221,229)"]
-    palette = list(reversed(colors[2:]))
-    idx = (cent_norm*(len(palette)-1)).astype(int)
-    node_colors = [palette[i] for i in idx]
+    colors = px.colors.diverging.Portland
+    idx = (cent_norm*(len(colors)-1)).astype(int)
+    node_colors = [colors[i] for i in idx]
     node_sizes = [8+80*c for c in cent_norm]
 
-    pos = nx.spring_layout(G, k=0.9, iterations=100, seed=42, weight="weight")
+    pos = nx.spring_layout(G, seed=42, k=0.9, iterations=100)
 
     edge_x, edge_y = [], []
-    for u,v,_ in G.edges(data=True):
-        x0,y0 = pos[u]
-        x1,y1 = pos[v]
+    for u,v in G.edges():
+        x0,y0 = pos[u]; x1,y1 = pos[v]
         edge_x += [x0,x1,None]
         edge_y += [y0,y1,None]
 
-    node_x = [pos[n][0] for n in G.nodes()]
-    node_y = [pos[n][1] for n in G.nodes()]
-    node_text = [f"{n}<br>Strength={strength[n]:.2f}" for n in G.nodes()]
-
     fig_net = go.Figure()
-
     fig_net.add_trace(go.Scatter(
         x=edge_x, y=edge_y, mode="lines",
         line=dict(width=1.3, color="dimgray"), opacity=0.55
     ))
 
     fig_net.add_trace(go.Scatter(
-        x=node_x, y=node_y, mode="markers+text",
-        text=list(G.nodes()), textposition="top center",
-        hovertext=node_text,
-        hoverinfo="text",
+        x=[pos[n][0] for n in G.nodes()],
+        y=[pos[n][1] for n in G.nodes()],
+        mode="markers+text",
+        text=list(G.nodes()),
+        textposition="top center",
         marker=dict(size=node_sizes, color=node_colors, opacity=0.97)
     ))
 
-    fig_net.update_layout(
-        dragmode="pan",
-        height=830,
-        margin=dict(l=10,r=10,b=10,t=10),
-        hovermode="closest"
-    )
-
+    fig_net.update_layout(height=830, dragmode="pan")
     st.plotly_chart(fig_net, use_container_width=True)
 
 # ======================================================
-# TAB 5 — SENTIMENT (ITALIANO)
+# TAB 5 — SENTIMENT (ITALIANO SPA-CY)
 # ======================================================
 with tabs[4]:
 
-    st.header("Sentiment Analysis (Italiano)")
+    st.header("Sentiment Analysis (Italiano – spaCy)")
 
-    sia = SentimentIntensityAnalyzer()
-
-    # dizionario sentiment italiano additivo
-    italian_boost = {
-        "buono": 2.0, "positivo": 2.2, "favorevole": 1.8,
-        "cattivo": -2.0, "negativo": -2.2, "sfavorevole": -1.8,
-        "terribile": -3.0, "eccellente": 3.0
+    sentiment_lexicon = {
+        "buono": 1.5, "ottimo": 2.0, "positivo": 2.2, "favorevole": 1.8,
+        "eccellente": 2.5, "felice": 2.0, "contento": 1.8,
+        "cattivo": -1.8, "negativo": -2.0, "sfavorevole": -1.8,
+        "terribile": -2.5, "orrendo": -2.8, "pessimo": -2.2
     }
-    sia.lexicon.update(italian_boost)
 
-    df["sentiment_score"] = df[text_col].astype(str).apply(lambda x: sia.polarity_scores(x)["compound"])
+    def sentiment_it_spacy(text):
+        doc = nlp(text)
+        score = 0
+        for token in doc:
+            lemma = token.lemma_.lower()
+            if lemma in sentiment_lexicon:
+                score += sentiment_lexicon[lemma]
+        if score > 0.5:
+            return "Positivo", score
+        elif score < -0.5:
+            return "Negativo", score
+        else:
+            return "Neutro", score
 
-    df["sentiment_label"] = df["sentiment_score"].apply(
-        lambda s: "Positivo" if s>0.05 else ("Negativo" if s<-0.05 else "Neutro")
-    )
+    df["sentiment_label"], df["sentiment_score"] = zip(*df[text_col].astype(str).apply(sentiment_it_spacy))
 
-    color_map = {"Positivo": "#4DA6FF","Negativo": "#FF6666","Neutro":"#BFBFBF"}
+    color_map = {"Positivo": "#4DA6FF", "Negativo": "#FF6666", "Neutro": "#BFBFBF"}
 
     st.subheader("Distribuzione generale")
     sent_counts = df["sentiment_label"].value_counts(normalize=True).reset_index()
@@ -440,11 +465,7 @@ with tabs[4]:
     fig.update_layout(yaxis=dict(ticksuffix="%"))
     st.plotly_chart(fig, use_container_width=True)
 
-    # ======================================================
-    # 2) Sentiment by Gender
-    # ======================================================
     st.subheader("Sentiment per Gender")
-    
     fig = px.histogram(
         df,
         x=gender_col,
@@ -452,14 +473,28 @@ with tabs[4]:
         barnorm="percent",
         color_discrete_map=color_map
     )
-    
     fig.update_layout(
         xaxis_title="Gender",
-        yaxis_title="Percentuale per categoria",
+        yaxis_title="Percentuale",
         legend_title="Sentiment"
     )
-    
     st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("Sentiment per Model")
+    fig = px.histogram(
+        df,
+        x=model_col,
+        color="sentiment_label",
+        barnorm="percent",
+        color_discrete_map=color_map
+    )
+    fig.update_layout(
+        xaxis_title="Model",
+        yaxis_title="Percentuale",
+        legend_title="Sentiment"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
 # ======================================================
 # TAB 6 — WORDCLOUDS
 # ======================================================
