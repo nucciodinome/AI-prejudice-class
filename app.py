@@ -491,43 +491,82 @@ with tabs[4]:
 
     st.header("Sentiment Analysis (Italiano)")
 
+    # ------------------------------------------------------
+    # 1) Carichiamo il dizionario sentiment italiano da SentiWordNet_IT
+    # ------------------------------------------------------
+    try:
+        sent_lex = pd.read_csv("italian_sentiment_from_swn.csv")
+    except:
+        st.error("❌ Il file 'italian_sentiment_from_swn.csv' non è stato trovato nella cartella della app.")
+        st.stop()
+
+    # Convertiamo in dizionario
+    lexicon_dict = dict(zip(sent_lex.term.astype(str), sent_lex.score.astype(float)))
+
+    # ------------------------------------------------------
+    # 2) Inizializziamo il Sentiment Analyzer e aggiorniamo il dizionario
+    # ------------------------------------------------------
     sia = SentimentIntensityAnalyzer()
+    sia.lexicon.update(lexicon_dict)
 
-    # dizionario sentiment italiano additivo
-    italian_boost = {
-        "buono": 2.0, "positivo": 2.2, "favorevole": 1.8,
-        "cattivo": -2.0, "negativo": -2.2, "sfavorevole": -1.8,
-        "terribile": -3.0, "eccellente": 3.0
-    }
-    sia.lexicon.update(italian_boost)
-
-    df["sentiment_score"] = df[text_col].astype(str).apply(lambda x: sia.polarity_scores(x)["compound"])
+    # ------------------------------------------------------
+    # 3) Calcoliamo sentiment per ogni testo
+    # ------------------------------------------------------
+    df["sentiment_score"] = df[text_col].astype(str).apply(
+        lambda x: sia.polarity_scores(x)["compound"]
+    )
 
     df["sentiment_label"] = df["sentiment_score"].apply(
-        lambda s: "Positivo" if s>0.05 else ("Negativo" if s<-0.05 else "Neutro")
+        lambda s: 
+            "Positivo" if s > 0.05 else 
+            ("Negativo" if s < -0.05 else "Neutro")
     )
 
-    color_map = {"Positivo": "#4DA6FF","Negativo": "#FF6666","Neutro":"#BFBFBF"}
+    color_map = {
+        "Positivo": "#4DA6FF",   # blu
+        "Negativo": "#FF6666",   # rosso
+        "Neutro":   "#BFBFBF"    # grigio
+    }
 
-    st.subheader("Distribuzione generale")
-    sent_counts = df["sentiment_label"].value_counts(normalize=True).reset_index()
-    sent_counts.columns = ["sentiment_label","percent"]
-    sent_counts["percent_display"] = (sent_counts["percent"]*100).round(1)
+    # ------------------------------------------------------
+    # 4) DISTRIBUZIONE GENERALE
+    # ------------------------------------------------------
+    st.subheader("Distribuzione generale del sentiment")
+
+    sent_counts = (
+        df["sentiment_label"]
+        .value_counts(normalize=True)
+        .reset_index()
+        .rename(columns={"index": "sentiment_label"})
+    )
+    sent_counts["percent_display"] = (sent_counts["sentiment_label"].map(
+        df["sentiment_label"].value_counts(normalize=True)) * 100).round(1)
 
     fig = px.bar(
-        sent_counts, x="sentiment_label", y="percent",
-        color="sentiment_label", color_discrete_map=color_map,
+        sent_counts,
+        x="sentiment_label",
+        y=sent_counts["sentiment_label"].map(
+            df["sentiment_label"].value_counts(normalize=True)
+        ),
+        color="sentiment_label",
+        color_discrete_map=color_map,
         text="percent_display"
     )
+
     fig.update_traces(texttemplate="%{text}%", textposition="outside")
-    fig.update_layout(yaxis=dict(ticksuffix="%"))
+    fig.update_layout(
+        yaxis=dict(ticksuffix="%"),
+        xaxis_title="Categoria di Sentiment",
+        yaxis_title="Percentuale sul totale",
+    )
+
     st.plotly_chart(fig, use_container_width=True)
 
-    # ======================================================
-    # 2) Sentiment by Gender
-    # ======================================================
+    # ------------------------------------------------------
+    # 5) SENTIMENT PER GENDER
+    # ------------------------------------------------------
     st.subheader("Sentiment per Gender")
-    
+
     fig = px.histogram(
         df,
         x=gender_col,
@@ -535,13 +574,13 @@ with tabs[4]:
         barnorm="percent",
         color_discrete_map=color_map
     )
-    
+
     fig.update_layout(
         xaxis_title="Gender",
-        yaxis_title="Percentuale per categoria",
+        yaxis_title="Percentuale per categoria di sentiment",
         legend_title="Sentiment"
     )
-    
+
     st.plotly_chart(fig, use_container_width=True)
 # ======================================================
 # TAB 6 — WORDCLOUDS
