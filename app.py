@@ -179,23 +179,26 @@ with tabs[0]:
 
     # distribution by gender
     st.subheader("Topic Distribution by Gender")
+    
+    # Converti topic in categoria
+    df["topic_str"] = df["topic"].astype(str)
+    
     fig = px.histogram(
-        df, x="topic", color=gender_col, barmode="group",
+        df,
+        x="topic_str",
+        color=gender_col,
+        barmode="group",
+        category_orders={"topic_str": sorted(df["topic_str"].unique(), key=lambda x: int(x))},
         color_discrete_sequence=px.colors.qualitative.Set2
     )
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.subheader("Topic–Term Heatmap")
-    heat = np.vstack([top_words(t, top_n_words)[1] for t in range(n_topics)])
-    fig_hm = go.Figure(
-        data=go.Heatmap(
-            z=heat,
-            x=[f"Term {i+1}" for i in range(top_n_words)],
-            y=[f"Topic {i}" for i in range(n_topics)],
-            colorscale="Viridis"
-        )
+    
+    fig.update_layout(
+        xaxis_title="Topic",
+        yaxis_title="Count",
+        bargap=0.15
     )
-    st.plotly_chart(fig_hm, use_container_width=True)
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 # ======================================================
 # TAB 2 — STM-style + DUAL SEMANTIC NETWORKS
