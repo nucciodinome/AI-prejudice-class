@@ -177,27 +177,36 @@ with tabs[0]:
 
     st.dataframe(pd.DataFrame(topic_rows), use_container_width=True)
 
-    # distribution by gender
+    # ===============================
+    # DISTRIBUZIONE TOPIC × GENDER
+    # ===============================
     st.subheader("Topic Distribution by Gender")
-    
-    # Converti topic in categoria
-    df["topic_str"] = df["topic"].astype(str)
-    
+
+    # Etichette leggibili: "Topic 0", "Topic 1", ...
+    df["topic_label"] = df["topic"].astype(int).apply(lambda t: f"Topic {t}")
+
+    # Ordine dei topic
+    ordered_topics = sorted(df["topic_label"].unique(), key=lambda x: int(x.split()[1]))
+
     fig = px.histogram(
         df,
-        x="topic_str",
+        x="topic_label",
         color=gender_col,
         barmode="group",
-        category_orders={"topic_str": sorted(df["topic_str"].unique(), key=lambda x: int(x))},
+        category_orders={"topic_label": ordered_topics},
         color_discrete_sequence=px.colors.qualitative.Set2
     )
-    
+
+    # Strettezza barre + layout compatto
+    fig.update_traces(marker=dict(line=dict(width=0)), opacity=0.92)
     fig.update_layout(
+        bargap=0.05,             # più strette
+        bargroupgap=0.1,         # gruppi più compatti
         xaxis_title="Topic",
         yaxis_title="Count",
-        bargap=0.15
+        xaxis=dict(type="category")
     )
-    
+
     st.plotly_chart(fig, use_container_width=True)
 
 # ======================================================
