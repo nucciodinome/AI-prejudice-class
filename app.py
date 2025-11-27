@@ -228,7 +228,7 @@ with tabs[1]:
             x="word",
             y="diff",
             color="diff",
-            color_continuous_scale=["red", "white", "blue"],
+            color_continuous_scale=px.colors.diverging.RdBu[::-1],
             title=f"{g1} vs {g2}: Word Usage Differences"
         )
         fig.update_layout(xaxis={'categoryorder': 'total descending'})
@@ -440,6 +440,26 @@ with tabs[4]:
     fig.update_layout(yaxis=dict(ticksuffix="%"))
     st.plotly_chart(fig, use_container_width=True)
 
+    # ======================================================
+    # 2) Sentiment by Gender
+    # ======================================================
+    st.subheader("Sentiment per Gender")
+    
+    fig = px.histogram(
+        df,
+        x=gender_col,
+        color="sentiment_label",
+        barnorm="percent",
+        color_discrete_map=color_map
+    )
+    
+    fig.update_layout(
+        xaxis_title="Gender",
+        yaxis_title="Percentuale per categoria",
+        legend_title="Sentiment"
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
 # ======================================================
 # TAB 6 — WORDCLOUDS
 # ======================================================
