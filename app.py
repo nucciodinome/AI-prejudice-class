@@ -45,7 +45,7 @@ df = pd.read_excel(DATA_FILE)
 st.sidebar.header("Settings")
 
 # Auto-detect text column
-possible_text = [c for c in df.columns if "text" in c.lower()]
+possible_text = [c for c in df.columns if c.lower() in ["text","document","content"]]
 text_col = st.sidebar.selectbox("Select text column", df.columns, index=df.columns.get_loc(possible_text[0]) if possible_text else 0)
 
 # model column
