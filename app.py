@@ -237,65 +237,148 @@ with tabs[1]:
     # ------------------------
     # DUAL SEMANTIC NETWORKS (NEW)
     # ------------------------
+
     st.subheader("🔵🔴 Dual Semantic Networks by Gender")
-
-    def build_semantic_network(tokens, min_w=1):
+    
+    def build_semantic_network(tokens, docs, max_terms=30, quantile=0.75):
+        """
+        tokens = tutti i token del gruppo (g1 o g2)
+        docs   = lista di documenti tokenizzati del gruppo (lista di liste)
+        max_terms = massimo numero di nodi (30)
+        quantile = quantile per filtrare edge meno rilevanti
+        """
+    
+        # 1) top max_terms parole più frequenti
+        top_terms = Counter(tokens).most_common(max_terms)
+        words = [w for w, _ in top_terms]
+    
+        # 2) co-occurrence reale (non weight fissi)
+        cooc = Counter()
+        for doc in docs:
+            doc_set = set([t for t in doc if t in words])
+            for w1, w2 in combinations(doc_set, 2):
+                pair = tuple(sorted([w1, w2]))
+                cooc[pair] += 1
+    
+        # costruiamo il grafo
         G = nx.Graph()
-        top_terms = Counter(tokens).most_common(30)
-        words = [w for w,_ in top_terms]
-
-        for w1, w2 in combinations(words, 2):
-            if G.has_edge(w1, w2):
-                G[w1][w2]["weight"] += 1
-            else:
-                G.add_edge(w1, w2, weight=1)
-
-        # Remove weak edges
-        rem = [(u,v) for u,v,d in G.edges(data=True) if d["weight"] < min_w]
+        for (w1, w2), w in cooc.items():
+            G.add_edge(w1, w2, weight=w)
+    
+        if len(G.edges()) == 0:
+            return G
+    
+        # 3) filtro per quantile
+        weights = np.array([d["weight"] for _, _, d in G.edges(data=True)])
+        threshold = np.quantile(weights, quantile)
+    
+        # rimuovi edge sotto il quantile
+        rem = [(u, v) for u, v, d in G.edges(data=True) if d["weight"] < threshold]
         G.remove_edges_from(rem)
         G.remove_nodes_from(list(nx.isolates(G)))
-
+    
         return G
-
+    
+    
     col1, col2 = st.columns(2)
-
+    
+    
+    # ==========================================
+    # 🔴 RETE GENDER 1
+    # ==========================================
     with col1:
         st.markdown(f"### 🔴 Semantic Network – {g1}")
-        G1 = build_semantic_network(tok1)
-        pos = nx.spring_layout(G1, seed=1)
-        fig = go.Figure()
-        for u,v in G1.edges():
-            x0,y0 = pos[u]; x1,y1 = pos[v]
-            fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
-        fig.add_trace(go.Scatter(
-            x=[pos[n][0] for n in G1.nodes()],
-            y=[pos[n][1] for n in G1.nodes()],
-            mode="markers+text",
-            text=list(G1.nodes()),
-            textposition="top center",
-            marker=dict(size=10, color="red")
-        ))
-        fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
-        st.plotly_chart(fig, use_container_width=True)
-
+    
+        docs_g1 = df[df[gender_col] == g1]["_clean_tokens"].tolist()
+        G1 = build_semantic_network(tok1, docs_g1, max_terms=30, quantile=0.75)
+    
+        if len(G1.nodes()) == 0:
+            st.warning(f"Nessun nodo significativo per {g1}.")
+        else:
+            pos = nx.spring_layout(G1, seed=1, k=0.7)
+    
+            fig = go.Figure()
+    
+            # edges
+            for u, v, d in G1.edges(data=True):
+                x0, y0 = pos[u]
+                x1, y1 = pos[v]
+                fig.add_trace(go.Scatter(
+                    x=[x0, x1], y=[y0, y1],
+                    mode="lines",
+                    line=dict(color="rgba(60,60,60,0.65)", width=1.5),
+                    hoverinfo="none"
+                ))
+    
+            # nodes
+            fig.add_trace(go.Scatter(
+                x=[pos[n][0] for n in G1.nodes()],
+                y=[pos[n][1] for n in G1.nodes()],
+                mode="markers+text",
+                text=list(G1.nodes()),
+                textposition="top center",
+                marker=dict(
+                    size=12,
+                    color="rgba(255,60,60,0.70)",  # rosso + opaco
+                    line=dict(color="rgba(0,0,0,0.2)", width=1)
+                )
+            ))
+    
+            fig.update_layout(
+                height=500,
+                margin=dict(l=10, r=10, t=10, b=10),
+                showlegend=False
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    
+    
+    # ==========================================
+    # 🔵 RETE GENDER 2
+    # ==========================================
     with col2:
         st.markdown(f"### 🔵 Semantic Network – {g2}")
-        G2 = build_semantic_network(tok2)
-        pos = nx.spring_layout(G2, seed=1)
-        fig = go.Figure()
-        for u,v in G2.edges():
-            x0,y0 = pos[u]; x1,y1 = pos[v]
-            fig.add_trace(go.Scatter(x=[x0,x1], y=[y0,y1], mode="lines", line=dict(color="gray", width=1)))
-        fig.add_trace(go.Scatter(
-            x=[pos[n][0] for n in G2.nodes()],
-            y=[pos[n][1] for n in G2.nodes()],
-            mode="markers+text",
-            text=list(G2.nodes()),
-            textposition="top center",
-            marker=dict(size=10, color="blue")
-        ))
-        fig.update_layout(height=500, margin=dict(l=10,r=10,t=10,b=10))
-        st.plotly_chart(fig, use_container_width=True)
+    
+        docs_g2 = df[df[gender_col] == g2]["_clean_tokens"].tolist()
+        G2 = build_semantic_network(tok2, docs_g2, max_terms=30, quantile=0.75)
+    
+        if len(G2.nodes()) == 0:
+            st.warning(f"Nessun nodo significativo per {g2}.")
+        else:
+            pos = nx.spring_layout(G2, seed=1, k=0.7)
+    
+            fig = go.Figure()
+    
+            # edges
+            for u, v, d in G2.edges(data=True):
+                x0, y0 = pos[u]
+                x1, y1 = pos[v]
+                fig.add_trace(go.Scatter(
+                    x=[x0, x1], y=[y0, y1],
+                    mode="lines",
+                    line=dict(color="rgba(50,50,50,0.65)", width=1.5),
+                    hoverinfo="none"
+                ))
+    
+            # nodes
+            fig.add_trace(go.Scatter(
+                x=[pos[n][0] for n in G2.nodes()],
+                y=[pos[n][1] for n in G2.nodes()],
+                mode="markers+text",
+                text=list(G2.nodes()),
+                textposition="top center",
+                marker=dict(
+                    size=12,
+                    color="rgba(60,100,255,0.70)",  # blu + opaco
+                    line=dict(color="rgba(0,0,0,0.2)", width=1)
+                )
+            ))
+    
+            fig.update_layout(
+                height=500,
+                margin=dict(l=10, r=10, t=10, b=10),
+                showlegend=False
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 # ======================================================
 # TAB 3 — TOPIC DISTANCE MAP
