@@ -8,3 +8,4 @@ matplotlib
 wordcloud
 openpyxl
 networkx
+it_core_news_sm
