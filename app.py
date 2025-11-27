@@ -26,7 +26,7 @@ nltk.download("vader_lexicon", quiet=True)
 # CONFIG
 # ------------------------------------------------------
 st.set_page_config(page_title="Ultra-Advanced Text Analysis Suite", layout="wide")
-st.title("🧪 My Research Lab 🎓UNIMORE🎓")
+st.title("🧪 My Research Lab - UNIMORE")
 
 # ------------------------------------------------------
 # AUTOLOAD EXCEL FROM GITHUB FOLDER
