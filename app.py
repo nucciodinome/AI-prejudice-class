@@ -52,35 +52,32 @@ if uploaded:
     # STOPWORDS
     # --------------------------------------------------
     default_stop = {
-        "a","about","above","across","after","again","against","all","almost","alone","along","already",
-        "also","although","always","am","among","an","and","another","any","anybody","anyone","anything",
-        "anyway","anywhere","are","around","as","at","back","be","became","because","become","becomes",
-        "been","before","behind","being","below","beside","between","beyond","both","but","by","can",
-        "cannot","could","did","do","does","doing","done","down","during","each","either","else",
-        "enough","even","ever","every","everybody","everyone","everything","everywhere","except","few",
-        "first","five","for","former","formerly","four","from","further","had","has","have","having",
-        "he","her","here","hers","herself","him","himself","his","how","however","i","if","in","indeed",
-        "instead","into","is","it","its","itself","just","keep","keeps","kept","know","known","last",
-        "least","less","let","likely","long","made","make","makes","many","may","maybe","me","might",
-        "mine","more","most","mostly","much","must","my","myself","neither","never","new","next","nine",
-        "no","nobody","none","nor","not","nothing","now","nowhere","of","off","often","on","once","one",
-        "only","onto","or","other","others","otherwise","our","ours","ourselves","out","over","own",
-        "part","per","perhaps","put","rather","really","said","same","say","second","see","seem",
-        "seemed","seeming","seems","several","she","should","since","six","so","some","somebody",
-        "someone","something","sometimes","somewhere","still","such","taking","ten","than","that","the",
-        "their","theirs","them","themselves","then","there","therefore","these","they","thing","things",
-        "third","this","those","though","three","through","throughout","to","together","too","toward",
-        "try","trying","twenty","two","under","until","up","upon","us","use","used","usually","very",
-        "via","was","we","well","were","what","whatever","when","whenever","where","whether","which",
-        "while","who","whoever","whole","whom","why","will","with","within","without","would","yes",
-        "yet","you","your","yours","yourself","yourselves",
-
-        # conversational filler
-        "uh","um","hmm","ok","okay","yeah","yep","right","well","basically","literally","actually",
-        "kinda","sorta","maybe","guess","just","really","quite",
-
-        # academic filler
-        "analysis","study","studies","research","paper","text","section","paragraph","author","authors",
+        "a", "abbia", "abbiamo", "abbiano", "abbiate", "ad", "adesso", "affatto", "agl", "agli", "ai", "al", "alcuna", "alcune", "alcuni", 
+        "alcuno", "all", "alla", "alle", "allo", "altri", "altrimenti", "altro", "altra", "altre", "anche", "ancora", "anzi", "assai", 
+        "attualmente", "avendo", "avete", "aveva", "avevano", "avevo", "avrai", "avranno", "avrebbe", "avrebbero", "avrei", "avremo", 
+        "avrete", "avrete", "avrò", "avere", "aver", "avete", "avuto", "basta", "ben", "benchè", "bene", "bensì", "breve", "c", "casa", 
+        "c’è", "c’erano", "c’era", "certo", "certa", "certe", "certi", "che", "chi", "chicchessia", "chiunque", "ci", "ciascuna", 
+        "ciascuno", "ciò", "cioè", "circa", "ciro", "coi", "col", "come", "cominci", "comincia", "cominciando", "comunque", "con", "contro", 
+        "cosa", "cose", "cui", "da", "dai", "dal", "dall", "dalla", "dalle", "dallo", "davanti", "de", "degli", "dei", "del", "della", "delle", 
+        "dello", "dentro", "di", "dice", "dicendo", "dietro", "dire", "dirò", "dirai", "diranno", "direbbe", "direbbero", "dite", "diventa", 
+        "diventare", "divenire", "dopo", "dov", "dove", "dovrei", "dovremmo", "dovrete", "dovrò", "dovrà", "dovranno", "dovrebbero", "dovrebbe", "due", 
+        "dunque", "durante", "e", "ebbene", "ecc", "ecco", "ed", "egli", "ella", "entrambi", "entro", "erano", "era", "eravate", "eravamo", "erei", "ero", 
+        "essendo", "essere", "essi", "esse", "est", "etc", "facendo", "facile", "fai", "fanno", "fare", "farò", "farai", "faranno", "farebbe", "farebbero", 
+        "farei", "farò", "fatto", "felice", "fin", "finalmente", "finchè", "fino", "forse", "fra", "fu", "fui", "fummo", "furono", "già", "giacché", "giacche", 
+        "giusto", "gli", "gliene", "glieli", "glielo", "gliela", "gliele", "grazie", "guarda", "ha", "hai", "hanno", "ho", "i", "il", "in", "infatti", "inoltre", 
+        "insieme", "intanto", "intorno", "invece", "io", "là", "la", "lei", "le", "li", "lo", "loro", "là", "lì", "ma", "macché", "magari", "mai", "malgrado", 
+        "mancanza", "me", "mediante", "mentre", "meno", "mese", "mi", "mia", "mie", "miei", "mio", "molta", "molte", "molti", "molto", "ne", "negl", "negli", 
+        "nei", "nel", "nell", "nella", "nelle", "nello", "nemmeno", "neppure", "nessun", "nessuna", "nessuno", "niente", "no", "noi", "non", "nostra", "nostre", 
+        "nostri", "nostro", "nullo", "nulla", "o", "od", "oggi", "ognuno", "ogni", "oltre", "oppure", "ora", "osserva", "ossia", "ovvero", "ove", "per", "perché", 
+        "perciò", "perfino", "persino", "più", "poiché", "poi", "poiché", "possa", "possiamo", "possono", "posso", "potere", "potrà", "potrei", "potremmo", 
+        "potrebbero", "pp", "prendendo", "prima", "primo", "proprio", "può", "pure", "qual", "quale", "quali", "qualcosa", "qualcuno", "qualche", "qualsiasi", 
+        "quando", "quanta", "quante", "quanti", "quanto", "quasi", "questa", "queste", "questi", "questo", "qui", "quindi", "quinto", "se", "sé", "senza", "sembra", 
+        "sempre", "senza", "si", "sia", "siamo", "siano", "siate", "siete", "sino", "sinistra", "solito", "solo", "soltanto", "sono", "sopra", "sotto", "spesso", 
+        "sta", "stai", "stando", "stanno", "stare", "starà", "starei", "stavamo", "stava", "stavi", "stavo", "stessi", "stesso", "stessa", "stesse", "su", "sua", 
+        "sue", "sui", "sul", "sull", "sulla", "sulle", "sullo", "suo", "suoi", "svariati", "svariato", "tal", "tale", "tali", "tanta", "tante", "tanti", "tanto", 
+        "te", "tempo", "ti", "tra", "tranne", "tre", "troppo", "tu", "tua", "tue", "tuo", "tuoi", "tutta", "tutte", "tutti", "tutto", "u", "uguali", "un", "una", 
+        "un’altra", "un’altro", "uno", "uno", "unica", "unici", "unico", "uniche", "uno", "uomo", "va", "vai", "varie", "vario", "verso", "vi", "via", "voi", 
+        "volta", "volte", "vostra", "vostre", "vostri", "vostro", "vuole", "vuoi"
 
         # punctuation artifacts
         ".", ",", ";", "!", "?", "_", "(", ")", "[", "]", "{", "}", "'", "\""
