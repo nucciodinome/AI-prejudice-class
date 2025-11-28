@@ -89,7 +89,7 @@ default_stop = {
         "volta", "volte", "vostra", "vostre", "vostri", "vostro", "vuole", "vuoi"
 
         # punctuation artifacts
-        ".", ",", ";", "!", "?", "_", "(", ")", "[", "]", "{", "}", "'", "\""
+        "error",".", ",", ";", "!", "?", "_", "(", ")", "[", "]", "{", "}", "'", "\""
 }
 
 sociological_stop = {
