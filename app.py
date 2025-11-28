@@ -86,10 +86,10 @@ default_stop = {
         "sue", "sui", "sul", "sull", "sulla", "sulle", "sullo", "suo", "suoi", "svariati", "svariato", "tal", "tale", "tali", "tanta", "tante", "tanti", "tanto", 
         "te", "tempo", "ti", "tra", "tranne", "tre", "troppo", "tu", "tua", "tue", "tuo", "tuoi", "tutta", "tutte", "tutti", "tutto", "u", "uguali", "un", "una", 
         "un’altra", "un’altro", "uno", "uno", "unica", "unici", "unico", "uniche", "uno", "uomo", "va", "vai", "varie", "vario", "verso", "vi", "via", "voi", 
-        "volta", "volte", "vostra", "vostre", "vostri", "vostro", "vuole", "vuoi"
+        "volta", "volte", "vostra", "vostre", "vostri", "vostro", "vuole", "vuoi","error",
 
         # punctuation artifacts
-        "error",".", ",", ";", "!", "?", "_", "(", ")", "[", "]", "{", "}", "'", "\""
+        ".", ",", ";", "!", "?", "_", "(", ")", "[", "]", "{", "}", "'", "\""
 }
 
 sociological_stop = {
